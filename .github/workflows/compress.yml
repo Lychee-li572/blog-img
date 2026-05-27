@@ -1,6 +1,6 @@
 # =============================================================================
-# 图片自动压缩工作流 — blog-img
-# 触发：向 main 分支推送 JPG/PNG 文件时自动转为 WebP
+# 鍥剧墖鑷姩鍘嬬缉宸ヤ綔娴?鈥?blog-img
+# 瑙﹀彂锛氬悜 main 鍒嗘敮鎺ㄩ€?JPG/PNG 鏂囦欢鏃惰嚜鍔ㄨ浆涓?WebP
 # =============================================================================
 
 name: Compress Images to WebP
@@ -21,8 +21,7 @@ concurrency:
 
 jobs:
   compress:
-    # 防止 github-actions[bot] 的提交再次触发，避免死循环
-    if: github.actor != 'github-actions[bot]'
+    # 闃叉 github-actions[bot] 鐨勬彁浜ゅ啀娆¤Е鍙戯紝閬垮厤姝诲惊鐜?    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     permissions:
@@ -37,8 +36,6 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -59,13 +56,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 暂存所有变更（新增 webp + 删除原图）
-          git add -A
+          # 鏆傚瓨鎵€鏈夊彉鏇达紙鏂板 webp + 鍒犻櫎鍘熷浘锛?          git add -A
 
           if git diff --staged --quiet; then
-            echo "✅ 没有变更需要提交"
+            echo "鉁?娌℃湁鍙樻洿闇€瑕佹彁浜?
           else
             git commit -m "chore: auto compress images to webp"
             git push
-            echo "🚀 已提交并推送"
+            echo "馃殌 宸叉彁浜ゅ苟鎺ㄩ€?
           fi
