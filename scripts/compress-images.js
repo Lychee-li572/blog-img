@@ -1,4 +1,4 @@
-﻿/**
+/**
  * compress-images.js
  * 遍历仓库目录，将 JPG/PNG 图片转换为 WebP 格式，并删除原图。
  *
