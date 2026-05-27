@@ -1,0 +1,16 @@
+﻿{
+  "name": "blog-img-compressor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Auto compress blog images to WebP using sharp",
+  "scripts": {
+    "compress": "node scripts/compress-images.js"
+  },
+  "dependencies": {
+    "sharp": "^0.33.5"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

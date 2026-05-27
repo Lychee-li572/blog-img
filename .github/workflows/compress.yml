@@ -1,0 +1,71 @@
+﻿# =============================================================================
+# 图片自动压缩工作流 — blog-img
+# 触发：向 main 分支推送 JPG/PNG 文件时自动转为 WebP
+# =============================================================================
+
+name: Compress Images to WebP
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**.jpg"
+      - "**.jpeg"
+      - "**.png"
+
+concurrency:
+  group: compress-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compress:
+    # 防止 github-actions[bot] 的提交再次触发，避免死循环
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run image compression
+        run: node scripts/compress-images.js
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          GITHUB_EVENT_AFTER: ${{ github.event.after }}
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 暂存所有变更（新增 webp + 删除原图）
+          git add -A
+
+          if git diff --staged --quiet; then
+            echo "✅ 没有变更需要提交"
+          else
+            git commit -m "chore: auto compress images to webp"
+            git push
+            echo "🚀 已提交并推送"
+          fi
