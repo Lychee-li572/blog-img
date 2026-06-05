@@ -1,12 +1,12 @@
 /**
  * compress-images.js
- * 遍历仓库目录，将 JPG/PNG 图片转换为 WebP 格式，并删除原图。
+ * 遍历仓库目录，压缩 JPG/PNG 图片（保持原格式），覆盖原图。
  *
  * 工作模式：
  *   1. 优先通过环境变量 GITHUB_EVENT_BEFORE / AFTER 做 git diff，只处理新增/修改的文件
  *   2. 若无法获取 diff（首次 push 等），回退到全仓库扫描
  *
- * 转换参数：WebP quality = 80
+ * 压缩参数：JPEG quality = 75（启用 mozjpeg）
  * 支持的格式：.jpg / .jpeg / .png
  */
 
@@ -16,7 +16,7 @@ const path = require("path");
 const { execSync } = require("child_process");
 
 // ==================== 配置 ====================
-const WEBP_QUALITY     = 80;
+const JPEG_QUALITY     = 75;
 const ALLOWED_EXTS     = [".jpg", ".jpeg", ".png"];
 const EXCLUDE_DIRS     = ["node_modules", ".git", ".github", "scripts"];
 
@@ -81,24 +81,37 @@ function getChangedImageFiles() {
 
 // ==================== 核心 ====================
 
-async function convertToWebP(filePath) {
-  const parsed  = path.parse(filePath);
-  const webpPath = path.join(parsed.dir, `${parsed.name}.webp`);
+async function compressImage(filePath) {
+  const tmpPath = filePath + ".tmp";
 
   const origSize = fs.statSync(filePath).size;
 
-  await sharp(filePath)
-    .webp({ quality: WEBP_QUALITY })
-    .toFile(webpPath);
+  const ext = path.extname(filePath).toLowerCase();
+  let pipeline = sharp(filePath);
+  if (ext === ".png") {
+    pipeline = pipeline.png({ quality: JPEG_QUALITY });
+  } else {
+    pipeline = pipeline.jpeg({ quality: JPEG_QUALITY, mozjpeg: true });
+  }
 
-  const webpSize = fs.statSync(webpPath).size;
-  const ratio    = ((1 - webpSize / origSize) * 100).toFixed(1);
+  await pipeline.toFile(tmpPath);
 
-  console.log(`  ✓ ${path.basename(filePath)} → ${path.basename(webpPath)}`);
-  console.log(`    原图 ${(origSize / 1024).toFixed(1)} KB → WebP ${(webpSize / 1024).toFixed(1)} KB（-${ratio}%）`);
+  const newSize = fs.statSync(tmpPath).size;
+  const ratio   = ((1 - newSize / origSize) * 100).toFixed(1);
 
+  // 如果压缩后更大或几乎没变化，保留原图
+  if (newSize >= origSize * 0.98) {
+    fs.unlinkSync(tmpPath);
+    console.log(`  ⏭️  ${path.basename(filePath)} 已接近最佳压缩，跳过`);
+    return;
+  }
+
+  // 用压缩后的文件替换原图
   fs.unlinkSync(filePath);
-  console.log(`  ✗ 已删除原图`);
+  fs.renameSync(tmpPath, filePath);
+
+  console.log(`  ✓ ${path.basename(filePath)}`);
+  console.log(`    ${(origSize / 1024).toFixed(1)} KB → ${(newSize / 1024).toFixed(1)} KB（-${ratio}%）`);
 }
 
 // ==================== 入口 ====================
@@ -114,7 +127,7 @@ async function main() {
   }
 
   console.log(`📸 发现 ${files.length} 张图片待处理:\n  ${files.join("\n  ")}\n`);
-  console.log("🔄 开始转换...\n");
+  console.log("🔄 开始压缩...\n");
 
   let success = 0;
   const errors = [];
@@ -125,16 +138,16 @@ async function main() {
       continue;
     }
     try {
-      await convertToWebP(file);
+      await compressImage(file);
       success++;
     } catch (err) {
-      console.error(`❌ 转换失败: ${file} — ${err.message}`);
+      console.error(`❌ 压缩失败: ${file} — ${err.message}`);
       errors.push({ file, error: err.message });
     }
   }
 
   console.log(`\n${"=".repeat(40)}`);
-  console.log(`🎉 完成！成功 ${success}/${files.length}`);
+  console.log(`🎉 压缩完成！成功 ${success}/${files.length}`);
   if (errors.length) {
     console.log(`⚠️  失败 ${errors.length} 个:`);
     errors.forEach(e => console.log(`   - ${e.file}: ${e.error}`));
